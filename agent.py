@@ -56,7 +56,6 @@ def run_agent():
 
             try:
                 print(f"Navigating to {TARGET_URL}...")
-                # Using domcontentloaded to prevent cloud timeouts
                 page.goto(TARGET_URL, wait_until="domcontentloaded", timeout=60000)
                 page.wait_for_timeout(5000)
 
