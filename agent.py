@@ -27,7 +27,8 @@ LOCATIONS = [
 def run_agent():
     print("=== STARTING AGENT RUN ===")
     captured_screenshots = []
-    email_body_text = "GFiber Webpass 3-Day Appointment Schedule Report\n\n"
+    email_body_text = "GFiber Webpass Appointment Schedule Report\n"
+    email_body_text += "="*45 + "\n\n"
 
     with sync_playwright() as p:
         browser = p.chromium.launch(
@@ -42,7 +43,7 @@ def run_agent():
 
         for loc in LOCATIONS:
             print(f"\n--- Processing Location: {loc['label']} ({loc['address']} #{loc['unit']}) ---")
-            email_body_text += f"Location: {loc['address']} #{loc['unit']}\n"
+            email_body_text += f"Location: {loc['label']} ({loc['address']} #{loc['unit']})\n"
             
             context = browser.new_context(
                 viewport={"width": 1440, "height": 900},
@@ -162,6 +163,16 @@ def run_agent():
                         captured_screenshots.append((f"{loc['label']} - {date_label}", filename))
                         loc_screenshots_taken += 1
 
+                # NEW: If zero screenshots were taken (no availability), capture the calendar anyway
+                if loc_screenshots_taken == 0:
+                    print(f"--> No available dates found for {loc['label']}. Taking a fallback screenshot of the calendar.")
+                    filename = f"{loc['prefix']}_no_availability.png"
+                    page.screenshot(path=filename, full_page=True)
+                    captured_screenshots.append((f"{loc['label']} - No Availability", filename))
+                    email_body_text += "Status: No appointment dates available in the next 6 days.\n"
+                else:
+                    email_body_text += f"Status: Captured {loc_screenshots_taken} available appointment days.\n"
+
             except Exception as e:
                 print(f"Error processing {loc['label']}: {e}")
                 traceback.print_exc()
@@ -172,7 +183,7 @@ def run_agent():
 
         browser.close()
 
-    email_body_text += f"Target URL: {TARGET_URL}\n\nAttached are the installation schedule screenshots."
+    email_body_text += f"Target URL: {TARGET_URL}\n"
     send_email_with_multiple_attachments("GFiber Webpass Schedule: SF & Seattle", email_body_text, captured_screenshots)
 
 def send_email_with_multiple_attachments(subject, body, screenshots):
@@ -181,6 +192,11 @@ def send_email_with_multiple_attachments(subject, body, screenshots):
     
     # HARDCODING RECIPIENTS HERE TO BYPASS GITHUB SECRETS
     recipients = ["lestar72@gmail.com", "rgalvin@gfiber.com"]
+    
+    # Add a clear list of attachments to the email body
+    body += "\n--- Summary of Attached Screenshots ---\n"
+    for label, shot_path in screenshots:
+        body += f"- {label} -> (File: {os.path.basename(shot_path)})\n"
 
     msg = MIMEMultipart()
     msg["Subject"] = subject
