@@ -24,9 +24,6 @@ LOCATIONS = [
     }
 ]
 
-DEFAULT_SENDER = "lestar72@gmail.com"
-DEFAULT_RECIPIENTS = "rgalvin@gfiber.com, lestar72@gmail.com"
-
 def run_agent():
     print("=== STARTING AGENT RUN ===")
     captured_screenshots = []
@@ -59,7 +56,6 @@ def run_agent():
                 page.goto(TARGET_URL, wait_until="domcontentloaded", timeout=60000)
                 page.wait_for_timeout(5000)
 
-                # Step 1: Type Address
                 print(f"Targeting visible address input and typing {loc['address']}...")
                 address_input = page.get_by_placeholder("Enter your address").locator("visible=true").first
                 address_input.click(force=True)
@@ -73,7 +69,6 @@ def run_agent():
                 address_input.press_sequentially(address_last, delay=200)
                 page.wait_for_timeout(4000)
 
-                # Step 2: Select Google Places Item
                 print("Clicking the Google Places dropdown...")
                 pac_item = page.locator(".pac-container .pac-item").first
                 if pac_item.is_visible(timeout=5000):
@@ -85,7 +80,6 @@ def run_agent():
                 
                 page.wait_for_timeout(4000)
 
-                # Step 3: Select Unit
                 print(f"Clicking Unit field and selecting {loc['unit']}...")
                 unit_field = page.locator("input[placeholder*='Unit' i], select[name*='unit' i], input[name*='unit' i]").locator("visible=true").first
                 if unit_field.is_visible(timeout=5000):
@@ -106,7 +100,6 @@ def run_agent():
 
                 page.wait_for_timeout(3000)
 
-                # Step 4: Click Check Availability
                 print("Clicking 'Check availability'...")
                 check_button = page.locator("button:has-text('Check availability'), button:has-text('Check Availability')").locator("visible=true").first
                 if check_button.is_visible(timeout=5000):
@@ -116,7 +109,6 @@ def run_agent():
                 
                 page.wait_for_timeout(8000)
 
-                # Step 5: Click through intermediary screens
                 print("Clicking through intermediary screens...")
                 for i in range(5):
                     next_btn = page.locator("button:has-text('Next'), button:has-text('Continue'), button:has-text('Confirm'), button:has-text('Verify')").locator("visible=true").first
@@ -132,7 +124,6 @@ def run_agent():
 
                 page.wait_for_timeout(5000) 
 
-                # Step 6: Capture 3 distinct available days
                 print("Capturing 3 available days...")
                 loc_screenshots_taken = 0
                 for i in range(1, 7): 
@@ -174,13 +165,6 @@ def run_agent():
             except Exception as e:
                 print(f"Error processing {loc['label']}: {e}")
                 traceback.print_exc()
-                try:
-                    fallback_name = f"{loc['prefix']}_fallback.png"
-                    page.screenshot(path=fallback_name, timeout=5000)
-                    captured_screenshots.append((f"{loc['label']} - Error State", fallback_name))
-                    email_body_text += f"[ERROR] Failed to fetch schedule for {loc['label']}. See attached debug screenshot.\n"
-                except Exception as fallback_err:
-                    print(f"Fallback screenshot failed: {fallback_err}")
 
             finally:
                 context.close()
@@ -188,17 +172,15 @@ def run_agent():
 
         browser.close()
 
-    if not captured_screenshots:
-        email_body_text += "[WARNING]: No screenshots were captured for any location. The site may be blocking access or loading too slowly.\n"
-
     email_body_text += f"Target URL: {TARGET_URL}\n\nAttached are the installation schedule screenshots."
     send_email_with_multiple_attachments("GFiber Webpass Schedule: SF & Seattle", email_body_text, captured_screenshots)
 
 def send_email_with_multiple_attachments(subject, body, screenshots):
-    sender_email = os.environ.get("SENDER_EMAIL", DEFAULT_SENDER).strip()
+    sender_email = os.environ.get("SENDER_EMAIL", "lestar72@gmail.com").strip()
     sender_password = os.environ.get("SENDER_PASSWORD", "").replace(" ", "").strip()
-    recipient_email_str = os.environ.get("RECIPIENT_EMAIL", DEFAULT_RECIPIENTS)
-    recipients = [r.strip() for r in recipient_email_str.split(",") if r.strip()]
+    
+    # HARDCODING RECIPIENTS HERE TO BYPASS GITHUB SECRETS
+    recipients = ["lestar72@gmail.com", "rgalvin@gfiber.com"]
 
     msg = MIMEMultipart()
     msg["Subject"] = subject
