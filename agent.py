@@ -78,7 +78,8 @@ def run_agent():
                 page.wait_for_timeout(4000)
 
                 print("Clicking the Google Places dropdown...")
-                pac_item = page.locator(".pac-container .pac-item").locator("visible=true").first
+                # REVERTED: Removed the visibility check that broke the Google Places click
+                pac_item = page.locator(".pac-container .pac-item").first
                 if pac_item.is_visible(timeout=5000):
                     pac_item.click(force=True)
                 else:
@@ -124,34 +125,28 @@ def run_agent():
                 
                 page.wait_for_timeout(8000)
 
-                confirm_text = page.get_by_text("Just to confirm, is this your address and unit number?")
-                if confirm_text.is_visible(timeout=5000):
-                    print("Address confirmation screen detected! Clicking Next...")
-                    # Hybrid logic: Try standard button first, fallback to generic locator
-                    next_btn = page.locator("button:has-text('Next')").locator("visible=true").first
-                    if not next_btn.is_visible():
-                        next_btn = page.locator("a:has-text('Next'), div[role='button']:has-text('Next')").locator("visible=true").first
-                    
-                    if next_btn.is_visible():
-                        next_btn.click(force=True)
-                        page.wait_for_timeout(6000)
-
                 print("Clicking through intermediary screens...")
-                for i in range(6):
-                    # Hybrid logic for all intermediary screens
-                    general_next = page.locator("button:has-text('Next'), button:has-text('Continue')").locator("visible=true").first
-                    if not general_next.is_visible():
-                        general_next = page.locator("a:has-text('Next'), a:has-text('Continue'), div[role='button']:has-text('Next')").locator("visible=true").first
-                    
-                    if general_next.is_visible(timeout=4000):
-                        print(f"Clicking intermediary button (Screen {i+1})...")
-                        general_next.click(force=True)
-                        page.wait_for_timeout(6000)
-                    
+                for i in range(7):
+                    # Always check if we reached the calendar first
                     calendar_check = page.locator("text='Select a date and time', [role='tab']")
                     if calendar_check.count() > 0 and calendar_check.first.is_visible():
                         print("Successfully reached the appointment calendar!")
                         break
+                        
+                    # SMART CLICKER: Scan for any functional Next/Continue button and click it
+                    clicked = False
+                    for btn_text in ['Next', 'Continue']:
+                        if clicked: break
+                        btns = page.locator(f"button:has-text('{btn_text}')").locator("visible=true")
+                        for j in range(btns.count()):
+                            try:
+                                btns.nth(j).click(force=True, timeout=1000)
+                                clicked = True
+                                print(f"Clicked intermediary '{btn_text}' button (Screen {i+1})...")
+                                page.wait_for_timeout(6000)
+                                break
+                            except:
+                                pass
 
                 page.wait_for_timeout(5000) 
 
@@ -194,10 +189,10 @@ def run_agent():
                         loc_screenshots_taken += 1
 
                 if loc_screenshots_taken == 0:
-                    print(f"--> No available dates found for {loc['label']}. Taking a fallback screenshot of the calendar.")
+                    print(f"--> No available dates found for {loc['label']}. Taking a fallback screenshot.")
                     filename = f"{loc['prefix']}_no_availability.png"
                     page.screenshot(path=filename, full_page=True)
-                    captured_screenshots.append((f"{loc['label']} - No Availability / Final State", filename))
+                    captured_screenshots.append((f"{loc['label']} - Error / Final State", filename))
                     email_html += "<p style='color: orange;'><strong>Status:</strong> No appointment dates available in the next 6 days (or hit an end screen).</p>"
                 else:
                     email_html += f"<p><strong>Status:</strong> Captured {loc_screenshots_taken} available appointment days.</p>"
