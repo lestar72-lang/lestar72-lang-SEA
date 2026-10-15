@@ -108,7 +108,6 @@ def run_agent():
 
                 page.wait_for_timeout(2000)
 
-                # NEW FIX: Explicitly check for and fill out a separated ZIP code box
                 zip_field = page.locator("input[name*='zip' i], input[placeholder*='ZIP' i], input[placeholder*='Zip' i]").locator("visible=true").first
                 if zip_field.is_visible(timeout=2000):
                     print(f"ZIP field detected! Entering {loc['zip']}...")
@@ -128,18 +127,20 @@ def run_agent():
                 confirm_text = page.get_by_text("Just to confirm, is this your address and unit number?")
                 if confirm_text.is_visible(timeout=5000):
                     print("Address confirmation screen detected! Clicking Next...")
-                    next_btn = page.get_by_role("button", name="Next", exact=True)
-                    if next_btn.first.is_visible():
-                        next_btn.first.click()
+                    # Reverted to the flexible locator that San Francisco accepts
+                    next_btn = page.locator("button:has-text('Next'), a:has-text('Next'), div[role='button']:has-text('Next')").locator("visible=true")
+                    if next_btn.count() > 0:
+                        next_btn.last.click(force=True)
                         page.wait_for_timeout(6000)
 
                 print("Clicking through intermediary screens...")
                 for i in range(6):
-                    general_next = page.get_by_role("button", name="Next", exact=True).or_(page.get_by_role("button", name="Continue", exact=True))
+                    # Reverted to the flexible locator for intermediary screens
+                    general_next = page.locator("button:has-text('Next'), a:has-text('Next'), div[role='button']:has-text('Next'), button:has-text('Continue'), a:has-text('Continue')").locator("visible=true")
                     
-                    if general_next.first.is_visible(timeout=4000):
+                    if general_next.count() > 0:
                         print(f"Clicking intermediary button (Screen {i+1})...")
-                        general_next.first.click()
+                        general_next.last.click(force=True)
                         page.wait_for_timeout(6000)
                     
                     calendar_check = page.locator("text='Select a date and time', [role='tab']")
