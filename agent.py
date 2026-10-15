@@ -28,7 +28,6 @@ def run_agent():
     print("=== STARTING AGENT RUN ===")
     captured_screenshots = []
     
-    # Switch to HTML for reliable email rendering
     email_html = """
     <html>
     <body style="font-family: Arial, sans-serif; color: #333;">
@@ -116,19 +115,18 @@ def run_agent():
                 
                 page.wait_for_timeout(8000)
 
-                # Explicit check for the "Just to confirm" screen
                 confirm_text = page.get_by_text("Just to confirm, is this your address and unit number?")
                 if confirm_text.is_visible(timeout=5000):
                     print("Address confirmation screen detected! Clicking Next...")
-                    # Aggressively target any visible "Next" element
-                    next_btn = page.locator("text='Next'").locator("visible=true").last
+                    next_btn = page.locator("button:has-text('Next')").locator("visible=true").first
                     if next_btn.is_visible():
                         next_btn.click(force=True)
                         page.wait_for_timeout(6000)
 
                 print("Clicking through intermediary screens...")
-                for i in range(5):
-                    general_next = page.locator("text='Next', button:has-text('Continue')").locator("visible=true").last
+                for i in range(6):
+                    # Strictly target actual buttons or links, not plain text elements
+                    general_next = page.locator("button:has-text('Next'), a:has-text('Next'), button:has-text('Continue')").locator("visible=true").first
                     if general_next.is_visible(timeout=4000):
                         print(f"Clicking intermediary button (Screen {i+1})...")
                         general_next.click(force=True)
