@@ -110,9 +110,19 @@ def run_agent():
                 
                 page.wait_for_timeout(8000)
 
+                # NEW: Explicit check for the "Just to confirm" screen
+                confirm_header = page.locator("text='Just to confirm, is this your address and unit number?'")
+                if confirm_header.is_visible(timeout=5000):
+                    print("Address confirmation screen detected! Clicking Next...")
+                    # Using a broader locator to catch any element styled as a "Next" button
+                    confirm_next = page.locator("button:has-text('Next'), a:has-text('Next'), div[role='button']:has-text('Next'), text='Next'").locator("visible=true").last
+                    if confirm_next.is_visible():
+                        confirm_next.click(force=True)
+                        page.wait_for_timeout(6000)
+
                 print("Clicking through intermediary screens...")
                 for i in range(5):
-                    next_btn = page.locator("button:has-text('Next'), button:has-text('Continue'), button:has-text('Confirm'), button:has-text('Verify')").locator("visible=true").first
+                    next_btn = page.locator("button:has-text('Next'), a:has-text('Next'), div[role='button']:has-text('Next'), text='Next', button:has-text('Continue')").locator("visible=true").last
                     if next_btn.is_visible(timeout=5000):
                         print(f"Clicking intermediary button (Screen {i+1})...")
                         next_btn.click(force=True)
@@ -163,13 +173,12 @@ def run_agent():
                         captured_screenshots.append((f"{loc['label']} - {date_label}", filename))
                         loc_screenshots_taken += 1
 
-                # NEW: If zero screenshots were taken (no availability), capture the calendar anyway
                 if loc_screenshots_taken == 0:
                     print(f"--> No available dates found for {loc['label']}. Taking a fallback screenshot of the calendar.")
                     filename = f"{loc['prefix']}_no_availability.png"
                     page.screenshot(path=filename, full_page=True)
-                    captured_screenshots.append((f"{loc['label']} - No Availability", filename))
-                    email_body_text += "Status: No appointment dates available in the next 6 days.\n"
+                    captured_screenshots.append((f"{loc['label']} - Error State / No Availability", filename))
+                    email_body_text += "Status: Could not find available appointments, or hit an error screen.\n"
                 else:
                     email_body_text += f"Status: Captured {loc_screenshots_taken} available appointment days.\n"
 
@@ -190,10 +199,8 @@ def send_email_with_multiple_attachments(subject, body, screenshots):
     sender_email = os.environ.get("SENDER_EMAIL", "lestar72@gmail.com").strip()
     sender_password = os.environ.get("SENDER_PASSWORD", "").replace(" ", "").strip()
     
-    # HARDCODING RECIPIENTS HERE TO BYPASS GITHUB SECRETS
     recipients = ["lestar72@gmail.com", "rgalvin@gfiber.com"]
     
-    # Add a clear list of attachments to the email body
     body += "\n--- Summary of Attached Screenshots ---\n"
     for label, shot_path in screenshots:
         body += f"- {label} -> (File: {os.path.basename(shot_path)})\n"
