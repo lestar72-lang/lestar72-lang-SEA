@@ -27,8 +27,14 @@ LOCATIONS = [
 def run_agent():
     print("=== STARTING AGENT RUN ===")
     captured_screenshots = []
-    email_body_text = "GFiber Webpass Appointment Schedule Report\n"
-    email_body_text += "="*45 + "\n\n"
+    
+    # Switch to HTML for reliable email rendering
+    email_html = """
+    <html>
+    <body style="font-family: Arial, sans-serif; color: #333;">
+        <h2>GFiber Webpass Appointment Schedule Report</h2>
+        <hr>
+    """
 
     with sync_playwright() as p:
         browser = p.chromium.launch(
@@ -43,7 +49,7 @@ def run_agent():
 
         for loc in LOCATIONS:
             print(f"\n--- Processing Location: {loc['label']} ({loc['address']} #{loc['unit']}) ---")
-            email_body_text += f"Location: {loc['label']} ({loc['address']} #{loc['unit']})\n"
+            email_html += f"<h3>Location: {loc['label']} ({loc['address']} #{loc['unit']})</h3>"
             
             context = browser.new_context(
                 viewport={"width": 1440, "height": 900},
@@ -110,22 +116,22 @@ def run_agent():
                 
                 page.wait_for_timeout(8000)
 
-                # NEW: Explicit check for the "Just to confirm" screen
-                confirm_header = page.locator("text='Just to confirm, is this your address and unit number?'")
-                if confirm_header.is_visible(timeout=5000):
+                # Explicit check for the "Just to confirm" screen
+                confirm_text = page.get_by_text("Just to confirm, is this your address and unit number?")
+                if confirm_text.is_visible(timeout=5000):
                     print("Address confirmation screen detected! Clicking Next...")
-                    # Using a broader locator to catch any element styled as a "Next" button
-                    confirm_next = page.locator("button:has-text('Next'), a:has-text('Next'), div[role='button']:has-text('Next'), text='Next'").locator("visible=true").last
-                    if confirm_next.is_visible():
-                        confirm_next.click(force=True)
+                    # Aggressively target any visible "Next" element
+                    next_btn = page.locator("text='Next'").locator("visible=true").last
+                    if next_btn.is_visible():
+                        next_btn.click(force=True)
                         page.wait_for_timeout(6000)
 
                 print("Clicking through intermediary screens...")
                 for i in range(5):
-                    next_btn = page.locator("button:has-text('Next'), a:has-text('Next'), div[role='button']:has-text('Next'), text='Next', button:has-text('Continue')").locator("visible=true").last
-                    if next_btn.is_visible(timeout=5000):
+                    general_next = page.locator("text='Next', button:has-text('Continue')").locator("visible=true").last
+                    if general_next.is_visible(timeout=4000):
                         print(f"Clicking intermediary button (Screen {i+1})...")
-                        next_btn.click(force=True)
+                        general_next.click(force=True)
                         page.wait_for_timeout(6000)
                     
                     calendar_check = page.locator("text='Select a date and time', [role='tab']")
@@ -144,96 +150,4 @@ def run_agent():
                     target_date = datetime.now() + timedelta(days=i)
                     day_num_str = target_date.strftime('%d').lstrip('0')
                     day_name = target_date.strftime('%A')
-                    date_label = target_date.strftime('%A, %B %d, %Y')
-                    
-                    print(f"Checking {day_name} (Date: {day_num_str})...")
-                    day_card = page.get_by_text(day_num_str, exact=True).locator("visible=true").first
-                    
-                    if not day_card.is_visible(timeout=2000):
-                        next_arrow = page.locator("button[aria-label*='next' i], button:has-text('>')").locator("visible=true").first
-                        if next_arrow.is_visible():
-                            next_arrow.click(force=True)
-                            page.wait_for_timeout(1500)
-                    
-                    if day_card.is_visible():
-                        day_card.click(force=True)
-                        page.wait_for_timeout(1500)
-                        
-                        is_disabled = day_card.evaluate("el => el.disabled || el.hasAttribute('disabled') || el.getAttribute('aria-disabled') === 'true' || el.className.includes('disabled') || el.className.includes('unavailable') || el.style.color === 'rgb(204, 204, 204)'")
-                        
-                        if is_disabled:
-                            print(f"--> {day_name} is disabled. Skipping.")
-                            continue
-                        
-                        print(f"--> Waiting 6 seconds for {day_name} slots to load...")
-                        page.wait_for_timeout(6000)
-                        
-                        filename = f"{loc['prefix']}_schedule_{day_num_str}.png"
-                        page.screenshot(path=filename, full_page=True)
-                        captured_screenshots.append((f"{loc['label']} - {date_label}", filename))
-                        loc_screenshots_taken += 1
-
-                if loc_screenshots_taken == 0:
-                    print(f"--> No available dates found for {loc['label']}. Taking a fallback screenshot of the calendar.")
-                    filename = f"{loc['prefix']}_no_availability.png"
-                    page.screenshot(path=filename, full_page=True)
-                    captured_screenshots.append((f"{loc['label']} - Error State / No Availability", filename))
-                    email_body_text += "Status: Could not find available appointments, or hit an error screen.\n"
-                else:
-                    email_body_text += f"Status: Captured {loc_screenshots_taken} available appointment days.\n"
-
-            except Exception as e:
-                print(f"Error processing {loc['label']}: {e}")
-                traceback.print_exc()
-
-            finally:
-                context.close()
-                email_body_text += "\n"
-
-        browser.close()
-
-    email_body_text += f"Target URL: {TARGET_URL}\n"
-    send_email_with_multiple_attachments("GFiber Webpass Schedule: SF & Seattle", email_body_text, captured_screenshots)
-
-def send_email_with_multiple_attachments(subject, body, screenshots):
-    sender_email = os.environ.get("SENDER_EMAIL", "lestar72@gmail.com").strip()
-    sender_password = os.environ.get("SENDER_PASSWORD", "").replace(" ", "").strip()
-    
-    recipients = ["lestar72@gmail.com", "rgalvin@gfiber.com"]
-    
-    body += "\n--- Summary of Attached Screenshots ---\n"
-    for label, shot_path in screenshots:
-        body += f"- {label} -> (File: {os.path.basename(shot_path)})\n"
-
-    msg = MIMEMultipart()
-    msg["Subject"] = subject
-    msg["From"] = sender_email
-    msg["To"] = ", ".join(recipients)
-    msg.attach(MIMEText(body, "plain"))
-
-    for date_label, shot_path in screenshots:
-        if os.path.exists(shot_path):
-            try:
-                with open(shot_path, "rb") as f:
-                    img = MIMEImage(f.read(), name=os.path.basename(shot_path))
-                    img.add_header('Content-Disposition', 'attachment', filename=os.path.basename(shot_path))
-                    msg.attach(img)
-            except:
-                pass
-
-    try:
-        server = smtplib.SMTP("smtp.gmail.com", 587, timeout=30)
-        server.starttls()
-        server.login(sender_email, sender_password)
-        server.sendmail(sender_email, recipients, msg.as_string())
-        server.quit()
-    except Exception:
-        try:
-            with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=30) as server:
-                server.login(sender_email, sender_password)
-                server.sendmail(sender_email, recipients, msg.as_string())
-        except Exception as err:
-            raise err
-
-if __name__ == "__main__":
-    run_agent()
+                    date_label = target_date.
