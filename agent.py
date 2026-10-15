@@ -78,7 +78,7 @@ def run_agent():
                 page.wait_for_timeout(4000)
 
                 print("Clicking the Google Places dropdown...")
-                pac_item = page.locator(".pac-container .pac-item").first
+                pac_item = page.locator(".pac-container .pac-item").locator("visible=true").first
                 if pac_item.is_visible(timeout=5000):
                     pac_item.click(force=True)
                 else:
@@ -127,20 +127,25 @@ def run_agent():
                 confirm_text = page.get_by_text("Just to confirm, is this your address and unit number?")
                 if confirm_text.is_visible(timeout=5000):
                     print("Address confirmation screen detected! Clicking Next...")
-                    # Reverted to the flexible locator that San Francisco accepts
-                    next_btn = page.locator("button:has-text('Next'), a:has-text('Next'), div[role='button']:has-text('Next')").locator("visible=true")
-                    if next_btn.count() > 0:
-                        next_btn.last.click(force=True)
+                    # Hybrid logic: Try standard button first, fallback to generic locator
+                    next_btn = page.locator("button:has-text('Next')").locator("visible=true").first
+                    if not next_btn.is_visible():
+                        next_btn = page.locator("a:has-text('Next'), div[role='button']:has-text('Next')").locator("visible=true").first
+                    
+                    if next_btn.is_visible():
+                        next_btn.click(force=True)
                         page.wait_for_timeout(6000)
 
                 print("Clicking through intermediary screens...")
                 for i in range(6):
-                    # Reverted to the flexible locator for intermediary screens
-                    general_next = page.locator("button:has-text('Next'), a:has-text('Next'), div[role='button']:has-text('Next'), button:has-text('Continue'), a:has-text('Continue')").locator("visible=true")
+                    # Hybrid logic for all intermediary screens
+                    general_next = page.locator("button:has-text('Next'), button:has-text('Continue')").locator("visible=true").first
+                    if not general_next.is_visible():
+                        general_next = page.locator("a:has-text('Next'), a:has-text('Continue'), div[role='button']:has-text('Next')").locator("visible=true").first
                     
-                    if general_next.count() > 0:
+                    if general_next.is_visible(timeout=4000):
                         print(f"Clicking intermediary button (Screen {i+1})...")
-                        general_next.last.click(force=True)
+                        general_next.click(force=True)
                         page.wait_for_timeout(6000)
                     
                     calendar_check = page.locator("text='Select a date and time', [role='tab']")
