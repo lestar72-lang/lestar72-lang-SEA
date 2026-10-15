@@ -13,12 +13,14 @@ LOCATIONS = [
     {
         "address": "18 10th Street San Francisco CA 94103",
         "unit": "224",
+        "zip": "94103",
         "prefix": "sf",
         "label": "San Francisco"
     },
     {
         "address": "501 Roy Street Seattle WA 98109",
         "unit": "216",
+        "zip": "98109",
         "prefix": "sea",
         "label": "Seattle"
     }
@@ -104,7 +106,15 @@ def run_agent():
                         page.wait_for_timeout(500)
                         page.keyboard.press("Enter")
 
-                page.wait_for_timeout(3000)
+                page.wait_for_timeout(2000)
+
+                # NEW FIX: Explicitly check for and fill out a separated ZIP code box
+                zip_field = page.locator("input[name*='zip' i], input[placeholder*='ZIP' i], input[placeholder*='Zip' i]").locator("visible=true").first
+                if zip_field.is_visible(timeout=2000):
+                    print(f"ZIP field detected! Entering {loc['zip']}...")
+                    zip_field.click(force=True)
+                    zip_field.press_sequentially(loc['zip'], delay=100)
+                    page.wait_for_timeout(1000)
 
                 print("Clicking 'Check availability'...")
                 check_button = page.locator("button:has-text('Check availability'), button:has-text('Check Availability')").locator("visible=true").first
@@ -118,18 +128,18 @@ def run_agent():
                 confirm_text = page.get_by_text("Just to confirm, is this your address and unit number?")
                 if confirm_text.is_visible(timeout=5000):
                     print("Address confirmation screen detected! Clicking Next...")
-                    next_btn = page.locator("button:has-text('Next')").locator("visible=true").first
-                    if next_btn.is_visible():
-                        next_btn.click(force=True)
+                    next_btn = page.get_by_role("button", name="Next", exact=True)
+                    if next_btn.first.is_visible():
+                        next_btn.first.click()
                         page.wait_for_timeout(6000)
 
                 print("Clicking through intermediary screens...")
                 for i in range(6):
-                    # Strictly target actual buttons or links, not plain text elements
-                    general_next = page.locator("button:has-text('Next'), a:has-text('Next'), button:has-text('Continue')").locator("visible=true").first
-                    if general_next.is_visible(timeout=4000):
+                    general_next = page.get_by_role("button", name="Next", exact=True).or_(page.get_by_role("button", name="Continue", exact=True))
+                    
+                    if general_next.first.is_visible(timeout=4000):
                         print(f"Clicking intermediary button (Screen {i+1})...")
-                        general_next.click(force=True)
+                        general_next.first.click()
                         page.wait_for_timeout(6000)
                     
                     calendar_check = page.locator("text='Select a date and time', [role='tab']")
